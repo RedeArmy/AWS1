@@ -1,0 +1,64 @@
+Description: >
+
+    Practice AWS - Docker, this template deploys a VPC, with a pair of public and private subnets
+    spread across two Availabilty Zones. Deploys an Internet Gateway, with a default 
+    route on the public subnets. It deploys a pair of NAT Gateways (one in each AZ), 
+    and default routes for them in the private subnets. Then deploys a highly available ECS cluster using an AutoScaling Group, with 
+    ECS hosts distributed across multiple Availability Zones and Finally, it deploys a
+    pair of example ECS services from containers published in Amazon EC2 Container Registry (Amazon ECR).
+
+Resources:
+
+    RedeVPC:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/rede-ecs-cloudformation/Infra/VPC.yml
+            Parameters:
+                EnvName:            !Ref AWS::StackName
+                VpcCIDR:            10.0.0.0/16
+                PublicSubnet1CIDR:  10.0.11.0/20
+                PublicSubnet2CIDR:  10.0.22.0/20
+                PrivateSubnet1CIDR: 10.0.61.0/20
+                PrivateSubnet2CIDR: 10.0.72.0/20
+                
+    SecurityGroups:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/rede-ecs-cloudformation/Infra/Groups.yml
+            Parameters: 
+                EnvName: !Ref AWS::StackName
+                VPC:     !GetAtt RedeVPC.Outputs.RedeVPC
+
+    ALB:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/rede-ecs-cloudformation/Infra/Balancers.yml
+            Parameters:
+                EnvName:        !Ref AWS::StackName
+                VPC:            !GetAtt RedeVPC.Outputs.RedeVPC
+                Subnets:        !GetAtt RedeVPC.Outputs.PublicSubnets
+                SecurityGroup:  !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
+
+    ECS:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/rede-ecs-cloudformation/Infra/ECS.yml
+            Parameters:
+                EnvName: !Ref AWS::StackName
+                InstanceType: t2.micro  
+                ClusterSize: 4
+                VPC: !GetAtt RedeVPC.Outputs.RedeVPC
+                SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
+                Subnets: !GetAtt RedeVPC.Outputs.PrivateSubnets
+                ImageAMId: ami-5253c32d 
+
+    Service:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/rede-ecs-cloudformation/Serv/web-temp.yml
+            Parameters:
+                RedeVPC: !GetAtt RedeVPC.Outputs.RedeVPC
+                Cluster: !GetAtt ECS.Outputs.Cluster
+                DesiredCount: 2
+                Listener: !GetAtt ALB.Outputs.Listener 
+                Path: /
