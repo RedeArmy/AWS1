@@ -1,1 +1,1 @@
-# AWS1 - Practice Jenkins part  - testing 2
+# AWS1 - Practice Jenkins part  - testing
