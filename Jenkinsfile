@@ -19,6 +19,7 @@ node {
 	        }
         }
         stage ('Push') {
+		sh "aws ecr get-login --no-include-email --region us-east-1"
             	sh "docker push 797409686075.dkr.ecr.us-east-1.amazonaws.com/rede-webserv:latest"
       	}
       	stage ('Deploy') {
